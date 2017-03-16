@@ -1,0 +1,109 @@
+FROM ubuntu:14.04
+MAINTAINER Andrea Micheli<micheli.andrea@gmail.com>, Marco Gario <marco.gario@gmail.com>
+
+ENV DEBIAN_FRONTEND noninteractive
+ENV CONTAINER_DATE 20151011
+
+# Install all pre-requisites
+RUN apt-get update && \
+    apt-get -y install \
+    git python-setuptools python-nose\
+    python-pip python-dev make build-essential\
+    swig libgmp-dev autoconf libtool antlr3 wget curl\
+    libboost1.55-dev python3-six \
+    python3-dev pypy cython cython3 && \
+    apt-get clean
+
+################################################################################
+# PYTHON 2
+
+# Create a folder for pysmt
+RUN git clone https://github.com/pysmt/pysmt.git /pysmt
+
+# MSAT
+RUN cd /pysmt; python install.py --confirm-agreement --msat
+
+# Z3
+RUN cd /pysmt; python install.py --confirm-agreement --z3
+
+# CVC4
+RUN cd /pysmt; python install.py --confirm-agreement --cvc4
+
+# YICES
+RUN cd /pysmt; python install.py --confirm-agreement --yices
+
+# CUDD
+RUN cd /pysmt; python install.py --confirm-agreement --cudd
+
+# PICOSAT
+RUN cd /pysmt; python install.py --confirm-agreement --picosat
+
+# BOOLECTOR
+RUN cd /pysmt; python install.py --confirm-agreement --btor
+
+
+
+################################################################################
+# PYTHON 3
+
+# Save MathSAT and Picosat directories
+RUN mv /pysmt/.smt_solvers/mathsat-5.3.8-linux-x86_64/python/build/lib.linux-x86_64-2.7 /tmp/msat.back && \
+    mv /pysmt/.smt_solvers/picosat-960/build/lib.linux-x86_64-2.7 /tmp/picosat.back
+
+# Move Boolector dir
+RUN mv /pysmt/.smt_solvers/boolector-2.1.1-with-lingeling-b85 /pysmt/.smt_solvers/boolector-2.1.1-with-lingeling-b85_py2
+
+# Temporarily switch the interpreter symlink to avoid problems in install.py
+RUN mv /usr/bin/python /usr/bin/python.back && cp /usr/bin/python3 /usr/bin/python
+
+# MSAT with Python3
+RUN cd /pysmt; python3 install.py --confirm-agreement --msat
+
+# PICOSAT with Python3
+RUN cd /pysmt; python3 install.py --confirm-agreement --picosat
+
+# BOOLECTOR with Python3
+RUN cd /pysmt; python install.py --confirm-agreement --btor
+
+# Restore python2 interpreter
+RUN mv /usr/bin/python.back /usr/bin/python
+
+# Restore MathSAT and Picosat directories
+RUN mv /tmp/msat.back /pysmt/.smt_solvers/mathsat-5.3.8-linux-x86_64/python/build/lib.linux-x86_64-2.7 && \
+    mv /tmp/picosat.back /pysmt/.smt_solvers/picosat-960/build/lib.linux-x86_64-2.7
+
+
+################################################################################
+# SET PATHS
+
+ENV PYSMT_PATH /pysmt
+
+ENV PYSMT_MSAT_PATH /pysmt/.smt_solvers/mathsat-5.3.8-linux-x86_64/python:/pysmt/.smt_solvers/mathsat-5.3.8-linux-x86_64/python/build/lib.linux-x86_64-2.7
+ENV PYSMT_Z3_PATH /pysmt/.smt_solvers/z3_bin/lib/python2.7/dist-packages
+ENV PYSMT_CVC4_PATH /pysmt/.smt_solvers/CVC4_bin/share/pyshared:/pysmt/.smt_solvers/CVC4_bin/lib/pyshared
+ENV PYSMT_YICES_PATH /pysmt/.smt_solvers/pyices-aa0b91c39aa00c19c2160e83aad822dc468ce328/build/lib.linux-x86_64-2.7
+ENV PYSMT_PYCUDD_PATH /pysmt/.smt_solvers/repycudd-4861f4df8abc2ca205a6a09b30fdc8cfd29f6ebb
+ENV PYSMT_PICOSAT_PATH /pysmt/.smt_solvers/picosat-960:/pysmt/.smt_solvers/picosat-960/build/lib.linux-x86_64-2.7
+ENV PYSMT_BTOR_PATH /pysmt/.smt_solvers/boolector-2.1.1-with-lingeling-b85_py2/boolector
+
+ENV PYTHONPATH_2 ${PYSMT_PATH}:${PYSMT_MSAT_PATH}:${PYSMT_Z3_PATH}:${PYSMT_CVC4_PATH}:${PYSMT_YICES_PATH}:${PYSMT_PYCUDD_PATH}:${PYSMT_PICOSAT_PATH}:${PYSMT_BTOR_PATH}
+
+
+ENV PYSMT_MSAT_PATH_3 /pysmt/.smt_solvers/mathsat-5.3.8-linux-x86_64/python:/pysmt/.smt_solvers/mathsat-5.3.8-linux-x86_64/python/build/lib.linux-x86_64-3.4
+ENV PYSMT_PICOSAT_PATH_3 /pysmt/.smt_solvers/picosat-960:/pysmt/.smt_solvers/picosat-960/build/lib.linux-x86_64-3.4
+ENV PYSMT_BTOR_PATH_3 /pysmt/.smt_solvers/boolector-2.1.1-with-lingeling-b85/boolector
+
+ENV PYTHONPATH_3 ${PYSMT_PATH}:${PYSMT_MSAT_PATH_3}:${PYSMT_PICOSAT_PATH_3}:${PYSMT_BTOR_PATH_3}
+
+
+################################################################################
+# Final config and switch commands
+
+# To switch to python 2 type "source /pysmt/pysmt-python2"
+COPY ./pysmt-python2 /pysmt/pysmt-python2
+
+# To switch to python 3 type "source /pysmt/pysmt-python3"
+COPY ./pysmt-python3 /pysmt/pysmt-python3
+
+# Export PYTHONPATH globally
+ENV PYTHONPATH ${PYTHONPATH_2}
